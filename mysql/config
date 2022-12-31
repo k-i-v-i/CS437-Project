@@ -1,8 +1,0 @@
-import mysql.connector
-
-conn = mysql.connector.connect(
-  host="localhost",
-  user="username",
-  password="password",
-  database="database_name"
-)
