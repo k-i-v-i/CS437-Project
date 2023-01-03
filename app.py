@@ -84,13 +84,14 @@ app.secret_key = 'xyzsdfg'
   
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
+app.config['MYSQL_PASSWORD'] = 'denizi'
 app.config['MYSQL_DB'] = 'users'
   
 mysql = MySQL(app)
 
 @app.route('/', methods =['GET', 'POST'])
 def login():
+    global NO_ATTEMPT
     mesage = ''
     if request.method == 'POST' and 'email' in request.form and 'password' in request.form:
         email = request.form['email']
@@ -108,13 +109,15 @@ def login():
             session['name'] = user['name']
             session['email'] = user['email']
             mesage = 'Logged in successfully !'
+            
             time = datetime.now
+
             ip = request.remote_addr
             country = get_location(request.remote_addr)
             attempt = 'login'
-            status = 'successful'
-            no = NO_ATTEMPT
-            if no > 30:
+            status = 'successful'           
+            
+            if NO_ATTEMPT > 30:
               verdict = 'Malicious Brute-Force'
             else:
               verdict = 'Benign Successful'
@@ -125,7 +128,9 @@ def login():
             #userid = int(userid)
             NO_ATTEMPT = 0
             logid = logid + 1
+            print((logid, time, ip, country, attempt, status, verdict ))
             cursor.execute('INSERT INTO logs (logid, timestamp, ip, country, attempt, status, verdict) VALUES (%s, % s, % s, % s, %s, %s, %s)', (logid, time, ip, country, attempt, status, verdict ))
+            mysql.connection.commit()
             return render_template('user.html', mesage = mesage)
         else:
             mesage = 'Please enter correct email / password !'
@@ -147,6 +152,7 @@ def login():
             #userid = int(userid)
             logid = logid + 1
             cursor.execute('INSERT INTO logs (logid, timestamp, ip, country, attempt, status, verdict) VALUES (%s, % s, % s, % s, %s, %s, %s)', (logid, time, ip, country, attempt, status, verdict ))
+            mysql.connection.commit()
             #app.logger.info('Not successful login attempt')
     return render_template('login.html', mesage = mesage)
 
@@ -173,13 +179,23 @@ def admin():
 def user(user_id):
   # Retrieve the user's information from the database
   cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-  cursor.execute('SELECT * FROM user WHERE userid = %s ', (user_id,  ))
-  user = cursor.fetchone()
-  #user = User.query.get(user_id)
-  return render_template('user.html', user=user)
+  if user_id == 1:
+    entries = []
+    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+    # Retrieve the log entries from a database or file
+    entries = 'SELECT * FROM logs'
+    return render_template('log.html',entries=entries)
+  else:
+    cursor.execute('SELECT * FROM user WHERE userid = %s ', (user_id,  ))
+    user = cursor.fetchone()
+    #user = User.query.get(user_id)
+    return render_template('user.html', user=user)
+
+  
 
 @app.route('/recover_password', methods=['GET', 'POST'])
 def recover_password():
+  global NO_ATTEMPT
   error = None
   cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
   if request.method == 'POST':
@@ -227,7 +243,9 @@ def recover_password():
             #print(userid)
             #userid = int(userid)
       logid = logid + 1
+      
       cursor.execute('INSERT INTO logs (logid, timestamp, ip, country, attempt, status, verdict) VALUES (%s, % s, % s, % s, %s, %s, %s)', (logid, time, ip, country, attempt, status, verdict ))
+      mysql.connection.commit()
     else:
       # Generate a temporary password
       temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
@@ -236,17 +254,7 @@ def recover_password():
       return 'A temporary password has been sent to your email.'
   return render_template('recover_password.html', error=error)
 
-@app.route('/log', methods=['GET', 'POST'])
-def log(userid):
-  if userid==1:
-    entries = []
-    if request.method == 'POST':
-      # Retrieve the log entries from a database or file
-      entries = get_log_entries()
-      # Filter the entries based on the search query
-      search_query = request.form['search']
-      entries = filter_entries(entries, search_query)
-    return render_template('log.html', entries=entries)
+
 
 
 
